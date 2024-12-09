@@ -9,6 +9,24 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
+connect_db() {
+    db_name=""
+
+    while true; do
+        db_name=$(yad --entry --title="Connect To Database" --text="Enter the database name to connect to:" --center --width=400 --height=100)
+
+        if [ -z "$db_name" ]; then
+            yad --info --text="Operation cancelled" --center --width=400 --height=100
+            break
+        elif [ -d "$DB_DIR/$db_name" ]; then
+            yad --info --text="Connected to database '$db_name'" --center --width=400 --height=100
+            break
+        else
+            yad --error --text="Database '$db_name' does not exist" --center --width=400 --height=100
+        fi
+    done
+}
+
 create_db() {
     db_name=""
 
@@ -57,6 +75,7 @@ dbms_loop() {
         choice=$(yad --list --title="Main Menu" --on-top --width=400 --height=300 --center --radiolist --column="Choice" --column="Action" \
             TRUE "Create Database" \
             FALSE "List Databases" \
+            FALSE "Connect To Database" \
             FALSE "Drop Database" \
             FALSE "Exit")
 
@@ -65,6 +84,7 @@ dbms_loop() {
         case $choice in
             "Create Database") create_db ;;
             "List Databases") list_dbs ;;
+            "Connect To Database") connect_db;;
             "Drop Database") drop_db ;;
             "Exit") yad --info --text="Exiting..." --center --width=400 --height=100 ; break ;;
             *) yad --error --text="Invalid option, please try again" --center --width=400 --height=100 ;;
