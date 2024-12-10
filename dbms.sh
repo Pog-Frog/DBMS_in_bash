@@ -31,8 +31,8 @@ create_table() {
             --field="Column Name" "" \
             --field="Data Type:CB" "INT!VARCHAR!DATE" "")
         
-        if [ -z "$column_info" ]; then
-            yad --error --text="Column definition cancelled" --center --width=400 --height=100
+        if [ $? -eq 1 ]; then
+            yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
             return
         fi
 
