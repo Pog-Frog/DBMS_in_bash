@@ -10,8 +10,9 @@ BLUE="\e[34m"
 RESET="\e[0m"
 
 db_loop() {
+    local db_name="$1"
     while true; do
-        choice=$(yad --list --title="Database Menu" --on-top --width=400 --height=300 --center --radiolist --column="Choice" --column="Action" \
+        choice=$(yad --list --title="Database Menu - $db_name" --on-top --width=400 --height=300 --center --radiolist --column="Choice" --column="Action" \
             TRUE "Show Tables" \
             FALSE "Create Table" \
             FALSE "Drop Table" \
@@ -28,7 +29,7 @@ db_loop() {
         choice=$(echo $choice | awk -F'|' '{print $2}')
 
         case $choice in
-            "Exit") yad --info --text="Exiting database '$current_db'" --center --width=400 --height=100 ; break ;;
+            "Exit") yad --info --text="Exiting database '$db_name'" --center --width=400 --height=100 ; break ;;
             *) yad --error --text="Invalid option, please try again" --center --width=400 --height=100 ;;
         esac
     done
@@ -45,7 +46,7 @@ connect_db() {
             break
         elif [ -d "$DB_DIR/$db_name" ]; then
             yad --info --text="Connected to database '$db_name'" --center --width=400 --height=100 --button="Ok"
-            db_loop
+            db_loop "$db_name"
             break
         else
             yad --error --text="Database '$db_name' does not exist" --center --width=400 --height=100
