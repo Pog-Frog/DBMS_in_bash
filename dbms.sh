@@ -9,6 +9,55 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
+insert_into_table() {
+    local current_db="$1"
+
+    table_list=$(ls -1 "$DB_DIR/$current_db")
+    if [ -z "$table_list" ]; then
+        yad --info --text="No tables found in database '$current_db'" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    table_to_insert=$(echo "$table_list" | yad --list --title="Insert into Table - $current_db" --column="Tables" --center --width=400 --height=200 --button="Insert:0" --button="Cancel:1" --print-column=1 --separator="")
+
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    if [ -z "$table_to_insert" ]; then
+        yad --info --text="No table selected" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    column_definitions=$(head -n 1 "$DB_DIR/$current_db/$table_to_insert")
+
+    column_names=""
+    IFS=',' read -ra columns <<< "$column_definitions"
+    for col in "${columns[@]}"; do
+        column_name=$(echo $col | awk '{print $1}')
+        column_names+="$column_name "
+    done
+
+    form_fields=""
+    for col_name in $column_names; do
+        form_fields+="--field=$col_name: "
+    done
+
+    data=$(yad --form --title="Insert Data into $table_to_insert" --center --width=400 --height=300 $form_fields)
+
+    if [ $? -eq 1 ]; then
+        yad --info --text="Data insertion cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    formatted_data=$(echo $data | tr '|' ',')
+
+    echo $formatted_data
+
+    echo "$formatted_data" >> "$DB_DIR/$current_db/$table_to_insert"
+    yad --info --text="Data inserted into table '$table_to_insert' successfully" --center --width=400 --height=100 --button="OK"
+}
 
 drop_table() {
     local current_db="$1"
@@ -117,7 +166,7 @@ db_loop() {
             "Show Tables") show_tables "$current_db" ;;
             "Create Table") create_table "$current_db" ;;
             "Drop Table") drop_table "$current_db" ;;
-            "Insert into Table") ;;
+            "Insert into Table") insert_into_table "$current_db" ;;
             "Select from Table") ;;
             "Delete from Table") ;;
             "Exit") yad --info --text="Exiting database '$current_db'" --center --width=400 --height=100 ; break ;;
