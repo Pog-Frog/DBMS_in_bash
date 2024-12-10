@@ -79,12 +79,17 @@ dbms_loop() {
             FALSE "Drop Database" \
             FALSE "Exit")
 
+        if [ $? -eq 1 ]; then
+            yad --info --text="Exiting..." --center --width=400 --height=100
+            break
+        fi
+
         choice=$(echo $choice | awk -F'|' '{print $2}')
 
         case $choice in
             "Create Database") create_db ;;
             "List Databases") list_dbs ;;
-            "Connect To Database") connect_db;;
+            "Connect To Database") connect_db ;;
             "Drop Database") drop_db ;;
             "Exit") yad --info --text="Exiting..." --center --width=400 --height=100 ; break ;;
             *) yad --error --text="Invalid option, please try again" --center --width=400 --height=100 ;;
