@@ -9,10 +9,55 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
+
+create_table() {
+    local current_db="$1"
+
+    table_name=$(yad --entry --title="Create Table - $current_db" --text="Enter the table name:" --center --width=400 --height=100)
+    if [ -z "$table_name" ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    num_columns=$(yad --entry --title="Number of Columns" --text="Enter the number of columns:" --center --width=400 --height=100)
+    if ! [[ "$num_columns" =~ ^[0-9]+$ ]]; then
+        yad --error --text="Invalid number of columns" --center --width=400 --height=100
+        return
+    fi
+
+    column_definitions=""
+    for (( i=1; i<=num_columns; i++ )); do
+        column_info=$(yad --form --title="Column Definition $i" --text="Enter details for column $i" --center --width=400 --height=200 \
+            --field="Column Name" "" \
+            --field="Data Type:CB" "INT!VARCHAR!DATE" "")
+        
+        if [ -z "$column_info" ]; then
+            yad --error --text="Column definition cancelled" --center --width=400 --height=100
+            return
+        fi
+
+        column_name=$(echo $column_info | awk -F'|' '{print $1}')
+        column_type=$(echo $column_info | awk -F'|' '{print $2}')
+        
+        if [ -z "$column_name" ] || [ -z "$column_type" ]; then
+            yad --error --text="Invalid column definition" --center --width=400 --height=100
+            return
+        fi
+
+        column_definitions+="$column_name $column_type,"
+    done
+    column_definitions=${column_definitions%,}
+
+    touch "$DB_DIR/$current_db/$table_name"
+    echo "$column_definitions" > "$DB_DIR/$current_db/$table_name"
+    yad --info --text="Table '$table_name' created successfully in database '$current_db'" --center --width=400 --height=100 --button="OK"
+}
+
 db_loop() {
-    local db_name="$1"
+    local current_db="$1"
+
     while true; do
-        choice=$(yad --list --title="Database Menu - $db_name" --on-top --width=400 --height=300 --center --radiolist --column="Choice" --column="Action" \
+        choice=$(yad --list --title="Database Menu - $current_db" --on-top --width=400 --height=300 --center --radiolist --column="Choice" --column="Action" \
             TRUE "Show Tables" \
             FALSE "Create Table" \
             FALSE "Drop Table" \
@@ -29,7 +74,13 @@ db_loop() {
         choice=$(echo $choice | awk -F'|' '{print $2}')
 
         case $choice in
-            "Exit") yad --info --text="Exiting database '$db_name'" --center --width=400 --height=100 ; break ;;
+            "Show Tables") ;;
+            "Create Table") create_table "$current_db" ;;
+            "Drop Table") ;;
+            "Insert into Table") ;;
+            "Select from Table") ;;
+            "Delete from Table") ;;
+            "Exit") yad --info --text="Exiting database '$current_db'" --center --width=400 --height=100 ; break ;;
             *) yad --error --text="Invalid option, please try again" --center --width=400 --height=100 ;;
         esac
     done
