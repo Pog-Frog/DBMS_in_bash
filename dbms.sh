@@ -9,6 +9,7 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
+#TODO: IN the creation of the table ask for the primary key and check for in the insert
 insert_into_table() {
     local current_db="$1"
 
