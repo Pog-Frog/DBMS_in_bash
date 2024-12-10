@@ -13,9 +13,9 @@ RESET="\e[0m"
 create_table() {
     local current_db="$1"
 
-    table_name=$(yad --entry --title="Create Table - $current_db" --text="Enter the table name:" --center --width=400 --height=100)
-    if [ -z "$table_name" ]; then
-        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+    table_name=$(yad --entry --title="Create Table - $current_db" --text="Enter the table name (no spaces or special characters):" --center --width=400 --height=100)
+    if [[ -z "$table_name" || "$table_name" =~ [^a-zA-Z0-9_] ]]; then
+        yad --error --text="Invalid table name. Only alphanumeric characters and underscores are allowed." --center --width=400 --height=100
         return
     fi
 
@@ -27,7 +27,7 @@ create_table() {
 
     column_definitions=""
     for (( i=1; i<=num_columns; i++ )); do
-        column_info=$(yad --form --title="Column Definition $i" --text="Enter details for column $i" --center --width=400 --height=200 \
+        column_info=$(yad --form --title="Column Definition $i" --text="Enter details for column $i (no spaces or special characters in names):" --center --width=400 --height=200 \
             --field="Column Name" "" \
             --field="Data Type:CB" "INT!VARCHAR!DATE" "")
         
@@ -39,8 +39,8 @@ create_table() {
         column_name=$(echo $column_info | awk -F'|' '{print $1}')
         column_type=$(echo $column_info | awk -F'|' '{print $2}')
         
-        if [ -z "$column_name" ] || [ -z "$column_type" ]; then
-            yad --error --text="Invalid column definition" --center --width=400 --height=100
+        if [[ -z "$column_name" || "$column_name" =~ [^a-zA-Z0-9_] || -z "$column_type" ]]; then
+            yad --error --text="Invalid column definition. Only alphanumeric characters and underscores are allowed for column names." --center --width=400 --height=100
             return
         fi
 
