@@ -10,6 +10,21 @@ BLUE="\e[34m"
 RESET="\e[0m"
 
 
+show_tables() {
+    local current_db="$1"
+
+    if [ -d "$DB_DIR/$current_db" ]; then
+        table_list=$(ls -1 "$DB_DIR/$current_db")
+        if [ -z "$table_list" ]; then
+            yad --info --text="No tables found in database '$current_db'" --center --width=400 --height=100 --button="OK"
+        else
+            yad --list --title="Tables in Database - $current_db" --column="Tables" --center --width=400 --height=200 --button="OK" <<< "$table_list"
+        fi
+    else
+        yad --error --text="Database '$current_db' does not exist" --center --width=400 --height=100
+    fi
+}
+
 create_table() {
     local current_db="$1"
 
@@ -74,7 +89,7 @@ db_loop() {
         choice=$(echo $choice | awk -F'|' '{print $2}')
 
         case $choice in
-            "Show Tables") ;;
+            "Show Tables") show_tables "$current_db" ;;
             "Create Table") create_table "$current_db" ;;
             "Drop Table") ;;
             "Insert into Table") ;;
