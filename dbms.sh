@@ -10,6 +10,31 @@ BLUE="\e[34m"
 RESET="\e[0m"
 
 
+drop_table() {
+    local current_db="$1"
+
+    table_list=$(ls -1 "$DB_DIR/$current_db")
+    if [ -z "$table_list" ]; then
+        yad --info --text="No tables found in database '$current_db'" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    table_to_drop=$(echo "$table_list" | yad --list --title="Drop Table - $current_db" --column="Tables" --center --width=400 --height=200 --button="Cancel:1" --button="Drop:0" --print-column=1 --separator="")
+
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    if [ -z "$table_to_drop" ]; then
+        yad --info --text="No table selected" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    rm -f "$DB_DIR/$current_db/$table_to_drop"
+    yad --info --text="Table '$table_to_drop' dropped successfully from database '$current_db'" --center --width=400 --height=100 --button="OK"
+}
+
 show_tables() {
     local current_db="$1"
 
@@ -91,7 +116,7 @@ db_loop() {
         case $choice in
             "Show Tables") show_tables "$current_db" ;;
             "Create Table") create_table "$current_db" ;;
-            "Drop Table") ;;
+            "Drop Table") drop_table "$current_db" ;;
             "Insert into Table") ;;
             "Select from Table") ;;
             "Delete from Table") ;;
