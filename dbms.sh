@@ -317,6 +317,7 @@ drop_table() {
 
     rm -f "$DB_DIR/$current_db/$table_to_drop"
     yad --info --text="Table '$table_to_drop' dropped successfully from database '$current_db'" --center --width=400 --height=100 --button="OK"
+
 }
 
 show_tables() {
@@ -421,10 +422,10 @@ db_loop() {
             FALSE "Insert into Table" \
             FALSE "Select from Table" \
             FALSE "Delete from Table" \
-            FALSE "Exit")
+            FALSE "BACK")
 
-        if [ $? -eq 1 ]; then
-            yad --info --text="Returning to the main menu..." --center --width=400 --height=100 --button="OK"
+        if [ $? -ne 0 ]; then
+            yad --info --text="Returning to the main menu..." --center --width=400 --height=100 --timeout=1 --button="OK"
             break
         fi
 
@@ -437,7 +438,7 @@ db_loop() {
             "Insert into Table") insert_into_table "$current_db" ;;
             "Select from Table") select_from_table "$current_db" ;;
             "Delete from Table") delete_from_table "$current_db" ;;
-            "Exit") yad --info --text="Exiting database '$current_db'" --center --width=400 --height=100 ; break ;;
+            "BACK") yad --info --text="Exiting database '$current_db'" --center --width=400 --height=100 --timeout=1 --button="OK"; break ;;
             *) yad --error --text="Invalid option, please try again" --center --width=400 --height=100 ;;
         esac
     done
@@ -520,8 +521,8 @@ dbms_loop() {
             FALSE "Drop Database" \
             FALSE "Exit")
 
-        if [ $? -eq 1 ]; then
-            yad --info --text="Exiting..." --center --width=400 --height=100 --timeout=1  --button="OK"
+        if [ $? -ne 0 ]; then
+            yad --info --text="Exiting..." --center --width=400 --height=100 --timeout=1 --button="OK"
             break
         fi
 
