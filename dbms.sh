@@ -9,7 +9,7 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
-
+#TODO: implement select from table
 insert_into_table() {
     local current_db="$1"
 
