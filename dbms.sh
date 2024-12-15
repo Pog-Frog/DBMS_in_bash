@@ -9,7 +9,7 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
-
+#TODO: implement delete from table
 select_from_table() {
     local current_db="$1"
 
@@ -103,7 +103,7 @@ select_from_table() {
     if [ -z "$results" ]; then
         yad --info --text="No matching records found in table '$table_to_select'" --center --width=600 --height=100 --button="OK"
     else
-        yad --list --title="Results from $table_to_select" --column="$column_names" --center --width=400 --height=200 <<< "$results"
+        yad --list --title="Results from $table_to_select" --column="$column_names" --center --width=400 --height=200 --button="OK" <<< "$results"
     fi
 }
 
