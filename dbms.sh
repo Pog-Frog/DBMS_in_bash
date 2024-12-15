@@ -444,22 +444,24 @@ db_loop() {
 }
 
 connect_db() {
-    db_name=""
+    db_list=$(ls -1 "$DB_DIR")
+    if [ -z "$db_list" ]; then
+        yad --info --text="No databases found" --center --width=400 --height=100 --button="OK"
+        return
+    fi
 
-    while true; do
-        db_name=$(yad --entry --title="Connect To Database" --text="Enter the database name to connect to:" --center --width=400 --height=100)
-        
-        if [ -z "$db_name" ]; then
-            yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="Ok"
-            break
-        elif [ -d "$DB_DIR/$db_name" ]; then
-            yad --info --text="Connected to database '$db_name'" --center --width=400 --height=100 --button="Ok"
-            db_loop "$db_name"
-            break
-        else
-            yad --error --text="Database '$db_name' does not exist" --center --width=400 --height=100
-        fi
-    done
+    db_name=$(echo "$db_list" | yad --list --title="Connect To Database" --column="Databases" --center --width=400 --height=200 --button="Connect:0" --button="Cancel:1" --print-column=1 --separator="")
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+    if [ -z "$db_name" ]; then
+        yad --info --text="No database selected" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    yad --info --text="Connected to database '$db_name'" --center --width=400 --height=100 --button="OK"
+    db_loop "$db_name"
 }
 
 create_db() {
@@ -483,26 +485,30 @@ create_db() {
 
 list_dbs() {
     db_list=$(ls -1 "$DB_DIR")
-    yad --list --title="List Databases" --column="Databases" --center --width=400 --height=200 <<< "$db_list"
+    yad --list --title="List Databases" --column="Databases" --center --width=400 --height=200 --button="ok" <<< "$db_list"
 }
 
 drop_db() {
-    db_name=""
+    db_list=$(ls -1 "$DB_DIR")
+    if [ -z "$db_list" ]; then
+        yad --info --text="No databases found" --center --width=400 --height=100 --button="OK"
+        return
+    fi
 
-    while true; do
-        db_name=$(yad --entry --title="Drop Database" --text="Enter the database name to drop:" --center --width=400 --height=100)
+    db_name=$(echo "$db_list" | yad --list --title="Drop Database" --column="Databases" --center --width=400 --height=200 --button="Drop:0" --button="Cancel:1" --print-column=1 --separator="")
 
-        if [ -z "$db_name" ]; then
-            yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="Ok"
-            break
-        elif [ -d "$DB_DIR/$db_name" ]; then
-            rm -rf "$DB_DIR/$db_name"
-            yad --info --text="Database '$db_name' dropped successfully" --center --width=400 --height=100 --button="Ok"
-            break
-        else
-            yad --error --text="Database '$db_name' does not exist" --center --width=400 --height=100
-        fi
-    done
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    if [ -z "$db_name" ]; then
+        yad --info --text="No database selected" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    rm -rf "$DB_DIR/$db_name"
+    yad --info --text="Database '$db_name' dropped successfully" --center --width=400 --height=100 --button="OK"
 }
 
 dbms_loop() {
