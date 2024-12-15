@@ -9,7 +9,7 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
-#TODO: IN the creation of the table ask for the primary key and check for in the insert
+
 insert_into_table() {
     local current_db="$1"
 
@@ -32,13 +32,28 @@ insert_into_table() {
     fi
 
     column_definitions=$(head -n 1 "$DB_DIR/$current_db/$table_to_insert")
+    primary_key=$(echo "$column_definitions" | grep -oP 'PRIMARY_KEY\(\K[^)]+')
+    echo -e "Primary key: $primary_key" #TODO: remove 
+    echo -e "Column definitions (with primary): $column_definitions" #TODO: remove 
+
+    #remove the primary key from the column definitions
+    column_definitions=$(echo "$column_definitions" | sed "s/PRIMARY_KEY($primary_key)//g")
+    echo -e "Column definitions: $column_definitions" #TODO: remove
 
     column_names=""
+    primary_key_index=-1
+    column_count=1
     IFS=',' read -ra columns <<< "$column_definitions"
     for col in "${columns[@]}"; do
         column_name=$(echo $col | awk '{print $1}')
+        if [ "$column_name" == "$primary_key" ]; then
+            echo -e "Primary key found , column name: $column_name, primary key: $primary_key, index: $column_count" #TODO: remove
+            primary_key_index=$column_count
+        fi
         column_names+="$column_name "
+        ((column_count++))
     done
+    echo -e "Primary key index: $primary_key_index" #TODO: remove
 
     form_fields=""
     for col_name in $column_names; do
@@ -51,10 +66,23 @@ insert_into_table() {
         yad --info --text="Data insertion cancelled" --center --width=400 --height=100 --button="OK"
         return
     fi
+    echo -e "Data: $data" #TODO: remove
 
-    formatted_data=$(echo $data | tr '|' ',')
+    formatted_data=$(echo $data | tr '|' ' ')
+    echo -e "Formatted data: $formatted_data" #TODO: remove
 
-    echo $formatted_data
+    #get the primary key value
+    primary_key_value=$(echo $formatted_data | awk -v idx=$primary_key_index '{print $idx}')
+    echo -e "Primary key value: $primary_key_value" #TODO: remove
+
+    #check if the primary key value already exists
+    if [ -n "$primary_key_value" ]; then
+        primary_key_exists=$(awk -v idx=$primary_key_index -v pk=$primary_key_value '{if ($idx == pk) print $0}' "$DB_DIR/$current_db/$table_to_insert")
+        if [ -n "$primary_key_exists" ]; then
+            yad --error --text="Error!!, Primary key value '$primary_key_value' already exists in table '$table_to_insert'" --center --width=400 --height=100 --button="OK"
+            return
+        fi
+    fi
 
     echo "$formatted_data" >> "$DB_DIR/$current_db/$table_to_insert"
     yad --info --text="Data inserted into table '$table_to_insert' successfully" --center --width=400 --height=100 --button="OK"
@@ -104,20 +132,44 @@ create_table() {
     local current_db="$1"
 
     table_name=$(yad --entry --title="Create Table - $current_db" --text="Enter the table name (no spaces or special characters):" --center --width=400 --height=100)
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
     if [[ -z "$table_name" || "$table_name" =~ [^a-zA-Z0-9_] ]]; then
         yad --error --text="Invalid table name. Only alphanumeric characters and underscores are allowed." --center --width=400 --height=100
         return
     fi
+    if [ -f "$DB_DIR/$current_db/$table_name" ]; then
+        yad --error --text="Table '$table_name' already exists in database '$current_db'" --center --width=400 --height=100 --button="OK"
+        return
+    fi
 
-    num_columns=$(yad --entry --title="Number of Columns" --text="Enter the number of columns:" --center --width=400 --height=100)
-    if ! [[ "$num_columns" =~ ^[0-9]+$ ]]; then
+    num_columns=$(yad --entry --title="Number of Columns" --text="Enter the number of columns (including the primary key):" --center --width=400 --height=100)
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+    if ! [[ "$num_columns" =~ ^[0-9]+$ || "$num_columns" -lt 1 ]]; then
         yad --error --text="Invalid number of columns" --center --width=400 --height=100
         return
     fi
 
+    #primary
+    primary_key=$(yad --entry --title="Primary Key" --text="Enter the primary key column name:" --center --width=400 --height=100)
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+    if [[ -z "$primary_key" || "$primary_key" =~ [^a-zA-Z0-9_] ]]; then
+        yad --error --text="Invalid primary key. The primary key must be specified." --center --width=400 --height=100
+        return
+    fi
+
     column_definitions=""
+    primary_key_valid=false
     for (( i=1; i<=num_columns; i++ )); do
-        column_info=$(yad --form --title="Column Definition $i" --text="Enter details for column $i (no spaces or special characters in names):" --center --width=400 --height=200 \
+        column_info=$(yad --form --title="Column Definition $i" --text="Enter details for column $i (no spaces or special characters in names):" --center --width=500 --height=200 \
             --field="Column Name" "" \
             --field="Data Type:CB" "INT!VARCHAR!DATE" "")
         
@@ -135,13 +187,22 @@ create_table() {
         fi
 
         column_definitions+="$column_name $column_type,"
+        if [[ "$column_name" == "$primary_key" ]]; then
+            primary_key_valid=true
+        fi
     done
     column_definitions=${column_definitions%,}
 
+    if ! $primary_key_valid; then
+        yad --error --text="Creation failed!,  the primary key must be one of the defined columns." --center --width=400 --height=100
+        return
+    fi
+
     touch "$DB_DIR/$current_db/$table_name"
-    echo "$column_definitions" > "$DB_DIR/$current_db/$table_name"
+    echo "$column_definitions,PRIMARY_KEY($primary_key)" > "$DB_DIR/$current_db/$table_name"
     yad --info --text="Table '$table_name' created successfully in database '$current_db'" --center --width=400 --height=100 --button="OK"
 }
+
 
 db_loop() {
     local current_db="$1"
