@@ -9,7 +9,104 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
-#TODO: implement select from table
+
+select_from_table() {
+    local current_db="$1"
+
+    table_list=$(ls -1 "$DB_DIR/$current_db")
+    if [ -z "$table_list" ]; then
+        yad --info --text="No tables found in database '$current_db'" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    table_to_select=$(echo "$table_list" | yad --list --title="Select from Table - $current_db" --column="Tables" --center --width=400 --height=200 --button="Select:0" --button="Cancel:1" --print-column=1 --separator="")
+
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    if [ -z "$table_to_select" ]; then
+        yad --info --text="No table selected" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    column_definitions=$(head -n 1 "$DB_DIR/$current_db/$table_to_select")
+    primary_key=$(echo "$column_definitions" | grep -oP 'PRIMARY_KEY\(\K[^)]+')
+    echo -e "Primary key: $primary_key" #TODO: remove
+
+    #remove the primary key from the column definitions
+    column_definitions=$(echo "$column_definitions" | sed "s/PRIMARY_KEY($primary_key)//g")
+    echo -e "Column definitions: $column_definitions" #TODO: remove
+
+    column_names=""
+    column_count=1
+    primary_key_index=-1
+    IFS=',' read -ra columns <<< "$column_definitions"
+    for col in "${columns[@]}"; do
+        column_name=$(echo $col | awk '{print $1}')
+        if [ "$column_name" == "$primary_key" ]; then
+            echo -e "Primary key found , column name: $column_name, primary key: $primary_key, index: $column_count" #TODO: remove
+            primary_key_index=$column_count
+        fi
+        column_names+="$column_name "
+        ((column_count++))
+    done
+
+    form_fields=""
+    for col_name in $column_names; do
+        form_fields+="--field=$col_name: "
+    done
+
+    data=$(yad --form --title="Select Data from $table_to_select" --center --width=400 --height=300 $form_fields)
+
+    if [ $? -eq 1 ]; then
+        yad --info --text="Data selection cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+    echo -e "Data: $data" #TODO: remove
+
+    # formatted_data=$(echo $data | tr '|' ' ')
+    # echo -e "Formatted data: $formatted_data" #TODO: remove
+
+    #know which of the columns are filled by the user, here 12|| this means there were 2 fields in the data the 2nd one was empty, so we need to know which of the fields are filled and there index so that we can search for them in the table and need to make an array of there indexes
+    IFS='|' read -ra data_fields <<< "$data"
+    filled_fields_indexes=()
+    for i in "${!data_fields[@]}"; do
+        if [ -n "${data_fields[$i]}" ]; then
+            filled_fields_indexes+=($((i + 1)))
+        fi
+    done
+    echo -e "Filled fields indexes: ${filled_fields_indexes[@]}" #TODO: remove
+
+    #get the filled data fields 
+    filled_data_fields=()
+    for i in "${filled_fields_indexes[@]}"; do
+        filled_data_fields+=("${data_fields[$((i - 1))]}")
+    done
+    echo -e "Filled data fields: ${filled_data_fields[@]}" #TODO: remove
+
+    #search the table for the filled fields and display the results, caution: each line can contain multiple field and display them all
+    results=""
+    while IFS= read -r line; do
+        line_data=$(echo $line | tr ' ' '|')
+        for field in "${filled_data_fields[@]}"; do
+            if [[ "$line_data" == *"$field"* ]]; then
+                results+="$line_data\n"
+            fi
+        done
+    done < "$DB_DIR/$current_db/$table_to_select"
+    results=$(echo -e "$results") #to remove the trailing newline
+    results=$(echo "$results" | sed 's/,/ /g')
+    echo -e "Results: $results" #TODO: remove
+
+    if [ -z "$results" ]; then
+        yad --info --text="No matching records found in table '$table_to_select'" --center --width=600 --height=100 --button="OK"
+    else
+        yad --list --title="Results from $table_to_select" --column="$column_names" --center --width=400 --height=200 <<< "$results"
+    fi
+}
+
 insert_into_table() {
     local current_db="$1"
 
@@ -229,7 +326,7 @@ db_loop() {
             "Create Table") create_table "$current_db" ;;
             "Drop Table") drop_table "$current_db" ;;
             "Insert into Table") insert_into_table "$current_db" ;;
-            "Select from Table") ;;
+            "Select from Table") select_from_table "$current_db" ;;
             "Delete from Table") ;;
             "Exit") yad --info --text="Exiting database '$current_db'" --center --width=400 --height=100 ; break ;;
             *) yad --error --text="Invalid option, please try again" --center --width=400 --height=100 ;;
