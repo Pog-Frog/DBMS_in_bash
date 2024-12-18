@@ -144,20 +144,19 @@ select_from_table() {
     echo -e "Column definitions: $column_definitions" #TODO: remove
 
     column_names=""
-    column_count=1
-    primary_key_index=-1
     IFS=',' read -ra columns <<< "$column_definitions"
     for col in "${columns[@]}"; do
         column_name=$(echo $col | awk '{print $1}')
-        if [ "$column_name" == "$primary_key" ]; then
-            echo -e "Primary key found , column name: $column_name, primary key: $primary_key, index: $column_count" #TODO: remove
-            primary_key_index=$column_count
-        fi
         column_names+="$column_name "
-        ((column_count++))
     done
 
     form_fields=""
+    if [ -z "$primary_key" ]; then
+        yad --error --text="Corrupted table definition: Primary key not found  '$table_to_insert'" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    column_names="$primary_key $column_names"
     for col_name in $column_names; do
         form_fields+="--field=$col_name: "
     done
@@ -195,8 +194,9 @@ select_from_table() {
     while IFS= read -r line; do
         line_data=$(echo $line | tr ' ' '|')
         match=true
-        for field in "${filled_data_fields[@]}"; do
-            if [[ "$line_data" != *"$field"* ]]; then
+        for idx in "${filled_fields_indexes[@]}"; do
+            field_value=$(echo $line_data | cut -d'|' -f$idx)
+            if [[ ! " ${filled_data_fields[@]} " =~ " ${field_value} " ]]; then
                 match=false
                 break
             fi
@@ -206,7 +206,7 @@ select_from_table() {
         fi
     done < <(tail -n +2 "$DB_DIR/$current_db/$table_to_select")
     results=$(echo -e "$results") #to remove the trailing newline
-    results=$(echo "$results" | sed 's/,/ /g')
+    results=$(echo "$results" | sed 's/|/ /g')
     echo -e "Results: $results" #TODO: remove
 
     if [ -z "$results" ]; then
