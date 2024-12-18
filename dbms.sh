@@ -363,20 +363,23 @@ create_table() {
     fi
 
     #primary
-    primary_key=$(yad --entry --title="Primary Key" --text="Enter the primary key column name:" --center --width=400 --height=100)
+    primary_key_info=$(yad --form --title="Primary Key" --text="Enter the primary key column name:" --center --width=400 --height=100 \
+        --field="Primary Key" "" --field="Data Type:CB" "INT!VARCHAR!DATE" "")
     if [ $? -eq 1 ]; then
         yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
         return
     fi
-    if [[ -z "$primary_key" || "$primary_key" =~ [^a-zA-Z0-9_] ]]; then
-        yad --error --text="Invalid primary key. The primary key must be specified." --center --width=400 --height=100
+    primary_key=$(echo $primary_key_info | awk -F'|' '{print $1}')
+    primary_key_type=$(echo $primary_key_info | awk -F'|' '{print $2}')
+    if [[ -z "$primary_key" || "$primary_key" =~ [^a-zA-Z0-9_] || -z "$primary_key_type" ]]; then
+        yad --error --text="Invalid primary key definition. Only alphanumeric characters and underscores are allowed for column names." --center --width=400 --height=100
         return
-    fi
+    fi 
+
 
     column_definitions=""
-    primary_key_valid=false
-    for (( i=1; i<=num_columns; i++ )); do
-        column_info=$(yad --form --title="Column Definition $i" --text="Enter details for column $i (no spaces or special characters in names):" --center --width=500 --height=200 \
+    for (( i=1; i<num_columns; i++ )); do
+        column_info=$(yad --form --title="Column Definition $((i+1))" --text="Enter details for column $((i+1)) (no spaces or special characters in names):" --center --width=500 --height=200 \
             --field="Column Name" "" \
             --field="Data Type:CB" "INT!VARCHAR!DATE" "")
         
@@ -393,23 +396,24 @@ create_table() {
             return
         fi
 
-        column_definitions+="$column_name $column_type,"
-        if [[ "$column_name" == "$primary_key" ]]; then
-            primary_key_valid=true
+        #the column name should not be the same as the primary key or be repeated at all
+        if [ "$column_name" == "$primary_key" ]; then
+            yad --error --text="Column names cannot repeat" --center --width=400 --height=100
+            return
         fi
+        if [[ "$column_definitions" == *"$column_name"* ]]; then
+            yad --error --text="Column name '$column_name' already exists" --center --width=400 --height=100
+            return
+        fi
+
+        column_definitions+="$column_name $column_type,"
     done
     column_definitions=${column_definitions%,}
 
-    if ! $primary_key_valid; then
-        yad --error --text="Creation failed!,  the primary key must be one of the defined columns." --center --width=400 --height=100
-        return
-    fi
-
     touch "$DB_DIR/$current_db/$table_name"
-    echo "$column_definitions,PRIMARY_KEY($primary_key)" > "$DB_DIR/$current_db/$table_name"
+    echo "PRIMARY_KEY($primary_key),$column_definitions" > "$DB_DIR/$current_db/$table_name"
     yad --info --text="Table '$table_name' created successfully in database '$current_db'" --center --width=400 --height=100 --button="OK"
 }
-
 
 db_loop() {
     local current_db="$1"
