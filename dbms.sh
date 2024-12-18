@@ -247,21 +247,19 @@ insert_into_table() {
     echo -e "Column definitions: $column_definitions" #TODO: remove
 
     column_names=""
-    primary_key_index=-1
-    column_count=1
     IFS=',' read -ra columns <<< "$column_definitions"
     for col in "${columns[@]}"; do
         column_name=$(echo $col | awk '{print $1}')
-        if [ "$column_name" == "$primary_key" ]; then
-            echo -e "Primary key found , column name: $column_name, primary key: $primary_key, index: $column_count" #TODO: remove
-            primary_key_index=$column_count
-        fi
         column_names+="$column_name "
-        ((column_count++))
     done
-    echo -e "Primary key index: $primary_key_index" #TODO: remove
-
+    
     form_fields=""
+    if [ -z "$primary_key" ]; then
+        yad --error --text="Corrupted table definition: Primary key not found  '$table_to_insert'" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    column_names="$primary_key $column_names"
     for col_name in $column_names; do
         form_fields+="--field=$col_name: "
     done
@@ -278,7 +276,8 @@ insert_into_table() {
     echo -e "Formatted data: $formatted_data" #TODO: remove
 
     #get the primary key value
-    primary_key_value=$(echo $formatted_data | awk -v idx=$primary_key_index '{print $idx}')
+    primary_key_index=1
+    primary_key_value=$(echo $formatted_data | awk -v idx=$primary_key_index '{print $1}')
     echo -e "Primary key value: $primary_key_value" #TODO: remove
 
     #check if the primary key value already exists
