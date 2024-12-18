@@ -9,6 +9,199 @@ YELLOW="\e[33m"
 BLUE="\e[34m" 
 RESET="\e[0m"
 
+update_table() {
+    local current_db="$1"
+
+    table_list=$(ls -1 "$DB_DIR/$current_db")
+    if [ -z "$table_list" ]; then
+        yad --info --text="No tables found in database '$current_db'" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    table_to_select=$(echo "$table_list" | yad --list --title="Select from Table - $current_db" --column="Tables" --center --width=400 --height=200 --button="Select:0" --button="Cancel:1" --print-column=1 --separator="")
+
+    if [ $? -eq 1 ]; then
+        yad --info --text="Operation cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    if [ -z "$table_to_select" ]; then
+        yad --info --text="No table selected" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    column_definitions=$(head -n 1 "$DB_DIR/$current_db/$table_to_select")
+    primary_key=$(echo "$column_definitions" | grep -oP 'PRIMARY_KEY\(\K[^)]+')
+    echo -e "Primary key: $primary_key" #TODO: remove
+
+    #remove the primary key from the column definitions
+    column_definitions=$(echo "$column_definitions" | sed "s/PRIMARY_KEY($primary_key)//g")
+    echo -e "Column definitions: $column_definitions" #TODO: remove
+
+    column_names=""
+    IFS=',' read -ra columns <<< "$column_definitions"
+    for col in "${columns[@]}"; do
+        column_name=$(echo $col | awk '{print $1}')
+        column_names+="$column_name "
+    done
+
+    form_fields=""
+    if [ -z "$primary_key" ]; then
+        yad --error --text="Corrupted table definition: Primary key not found  '$table_to_insert'" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+
+    column_names="$primary_key $column_names"
+    for col_name in $column_names; do
+        # form_fields+="--field=$col_name: 12 "
+        form_fields+="--field=$col_name: "
+    done
+
+    data=$(yad --form --title="Select Data from $table_to_select" --center --width=400 --height=300 $form_fields)
+
+    if [ $? -eq 1 ]; then
+        yad --info --text="Data selection cancelled" --center --width=400 --height=100 --button="OK"
+        return
+    fi
+    echo -e "Data: $data" #TODO: remove
+
+    # formatted_data=$(echo $data | tr '|' ' ')
+    # echo -e "Formatted data: $formatted_data" #TODO: remove
+
+    #know which of the columns are filled by the user, here 12|| this means there were 2 fields in the data the 2nd one was empty, so we need to know which of the fields are filled and there index so that we can search for them in the table and need to make an array of there indexes
+    IFS='|' read -ra data_fields <<< "$data"
+    filled_fields_indexes=()
+    for i in "${!data_fields[@]}"; do
+        if [ -n "${data_fields[$i]}" ]; then
+            filled_fields_indexes+=($((i + 1)))
+        fi
+    done
+    echo -e "Filled fields indexes: ${filled_fields_indexes[@]}" #TODO: remove
+
+    #get the filled data fields 
+    filled_data_fields=()
+    for i in "${filled_fields_indexes[@]}"; do
+        filled_data_fields+=("${data_fields[$((i - 1))]}")
+    done
+    echo -e "Filled data fields: ${filled_data_fields[@]}" #TODO: remove
+
+    #search the table for the filled fields and display the results, caution: each line can contain multiple field and display them all
+    search_results=""
+    while IFS= read -r line; do
+        line_data=$(echo $line | tr ' ' '|')
+        match=true
+        for idx in "${filled_fields_indexes[@]}"; do
+            field_value=$(echo $line_data | cut -d'|' -f$idx)
+            if [[ ! " ${filled_data_fields[@]} " =~ " ${field_value} " ]]; then
+                match=false
+                break
+            fi
+        done
+        if $match; then
+            search_results+="$line_data\n"
+        fi
+    done < <(tail -n +2 "$DB_DIR/$current_db/$table_to_select")
+    search_results=$(echo -e "$search_results") #to remove the trailing newline
+    search_results=$(echo "$search_results" | sed 's/|/ /g')
+    echo -e "search_results: $search_results" #TODO: remove
+
+    if [ -z "$search_results" ]; then
+        yad --info --text="No matching records found in table '$table_to_select'" --center --width=600 --height=100 --button="OK"
+    else
+        # yad --list --title="Search results from $table_to_select" --column="$column_names" --center --width=400 --height=200 --button="OK" <<< "$search_results"
+        #display the results to the user and make him choose which of them to update he can select multiple records
+
+        parsed_results=()
+        while IFS= read -r line; do
+            parsed_results+=("FALSE" "$line")
+        done <<< "$search_results"
+        echo -e "Parsed results: ${parsed_results[@]}" #TODO: remove
+
+        selected_records=$(yad --list --checklist --width=400 --height=200 --center --title="Search results from $table_to_select" --button="Update:0" --button="Cancel:1" --column=Select:chk --column=Results:text "${parsed_results[@]}")
+        if [ $? -eq 1 ]; then
+            yad --info --text="Data update cancelled" --center --width=400 --height=100 --button="OK"
+            return
+        fi
+        if [ -z "$selected_records" ]; then
+            yad --info --text="No records selected for update" --center --width=400 --height=100 --button="OK"
+            return
+        fi
+        echo -e "Selected records: $selected_records" #TODO: remove
+
+        # Mark the line number of each selected record , ex of selected record: TRUE|12 ahmed ahmed@gmail.com| , this is what we want: "12 ahmed ahmed@gmail.com"
+        selected_records=$(echo "$selected_records" | awk -F'|' '{print $2}')
+        echo -e "Selected records: $selected_records" #TODO: remove
+
+        selected_records_lines=()
+        while IFS= read -r line; do
+            line_number=$(awk -v record="$line" '{if ($0 == record) print NR}' "$DB_DIR/$current_db/$table_to_select")
+            selected_records_lines+=($line_number)
+        done <<< "$selected_records"
+
+        # for i in "${!selected_records[@]}"; do
+        #     line_number=${selected_records_lines[$i]}
+        #     line=$(selected_records[$i])
+        #     form_fields=""
+        #     idx=1
+        #     for col_name in $column_names; do
+        #         form_fields+="--field=$col_name: $(echo $line | cut -d' ' -f$idx) "
+        #         idx=$((idx + 1))
+        #     done
+
+        #     updated_data=$(yad --form --title="Update Data in $table_to_select" --center --width=400 --height=300 $form_fields)
+        #     if [ $? -eq 1 ]; then
+        #         yad --info --text="Data update cancelled" --center --width=400 --height=100 --button="OK"
+        #         return
+        #     fi
+        #     echo -e "Updated data: $updated_data" #TODO: remove
+        #     updated_data=$(echo $updated_data | tr '|' ' ')
+        #     echo -e "Formatted updated data: $updated_data" #TODO: remove
+
+        #     # sed -i "${line_number}s/.*/$updated_data/" "$DB_DIR/$current_db/$table_to_select"
+        # done
+        i=0
+        while IFS= read -r line; do
+            line_number=${selected_records_lines[$i]}
+            #remove the line from the table
+            sed -i "/$line/d" "$DB_DIR/$current_db/$table_to_select"
+
+            form_fields=""
+            idx=1
+            for col_name in $column_names; do
+                form_fields+="--field=$col_name: $(echo $line | cut -d' ' -f$idx) "
+                idx=$((idx + 1))
+            done
+
+            updated_data=$(yad --form --title="Update Data in $table_to_select" --center --width=400 --height=300 $form_fields)
+            if [ $? -eq 1 ]; then
+                yad --info --text="Data update cancelled" --center --width=400 --height=100 --button="OK"
+                return
+            fi
+            echo -e "Updated data: $updated_data" #TODO: remove
+            formatted_data=$(echo $updated_data | tr '|' ' ')
+            echo -e "Formatted updated data: $formatted_data" #TODO: remove
+
+            primary_key_index=1
+            primary_key_value=$(echo $formatted_data | awk -v idx=$primary_key_index '{print $1}')
+
+            #check if the primary key value already exists
+            if [ -n "$primary_key_value" ]; then
+                primary_key_exists=$(awk -v idx=$primary_key_index -v pk=$primary_key_value '{if ($idx == pk) print $0}' "$DB_DIR/$current_db/$table_to_select")
+                if [ -n "$primary_key_exists" ]; then
+                    yad --error --text="Error!!, Primary key value '$primary_key_value' already exists in table '$table_to_select'" --center --width=400 --height=100 --button="OK"
+                    echo "$line" >> "$DB_DIR/$current_db/$table_to_select"
+                    return
+                fi
+            fi
+
+            echo "$formatted_data" >> "$DB_DIR/$current_db/$table_to_select"
+
+            ((i++))
+        done <<< "$selected_records"
+
+        yad --info --text="Records updated successfully" --center --width=400 --height=100 --button="OK"
+    fi
+}
 
 delete_from_table() {
     local current_db="$1"
@@ -430,6 +623,7 @@ db_loop() {
             FALSE "Insert into Table" \
             FALSE "Select from Table" \
             FALSE "Delete from Table" \
+            FALSE "Update Table" \
             FALSE "BACK")
 
         if [ $? -ne 0 ]; then
@@ -446,6 +640,7 @@ db_loop() {
             "Insert into Table") insert_into_table "$current_db" ;;
             "Select from Table") select_from_table "$current_db" ;;
             "Delete from Table") delete_from_table "$current_db" ;;
+            "Update Table") update_table "$current_db" ;;
             "BACK") yad --info --text="Exiting database '$current_db'" --center --width=400 --height=100 --timeout=1 --button="OK"; break ;;
             *) yad --error --text="Invalid option, please try again" --center --width=400 --height=100 ;;
         esac
