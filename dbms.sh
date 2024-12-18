@@ -34,7 +34,7 @@ update_table() {
     primary_key=$(echo "$column_definitions" | grep -oP 'PRIMARY_KEY\(\K[^)]+')
     echo -e "Primary key: $primary_key" #TODO: remove
 
-    #remove the primary key from the column definitions
+    #removing the primary key from the column definitions
     column_definitions=$(echo "$column_definitions" | sed "s/PRIMARY_KEY($primary_key)//g")
     echo -e "Column definitions: $column_definitions" #TODO: remove
 
@@ -53,7 +53,6 @@ update_table() {
 
     column_names="$primary_key $column_names"
     for col_name in $column_names; do
-        # form_fields+="--field=$col_name: 12 "
         form_fields+="--field=$col_name: "
     done
 
@@ -64,9 +63,6 @@ update_table() {
         return
     fi
     echo -e "Data: $data" #TODO: remove
-
-    # formatted_data=$(echo $data | tr '|' ' ')
-    # echo -e "Formatted data: $formatted_data" #TODO: remove
 
     #know which of the columns are filled by the user, here 12|| this means there were 2 fields in the data the 2nd one was empty, so we need to know which of the fields are filled and there index so that we can search for them in the table and need to make an array of there indexes
     IFS='|' read -ra data_fields <<< "$data"
@@ -85,7 +81,7 @@ update_table() {
     done
     echo -e "Filled data fields: ${filled_data_fields[@]}" #TODO: remove
 
-    #search the table for the filled fields and display the results, caution: each line can contain multiple field and display them all
+    #searching the table for the filled fields and display the results
     search_results=""
     while IFS= read -r line; do
         line_data=$(echo $line | tr ' ' '|')
@@ -137,28 +133,7 @@ update_table() {
             line_number=$(awk -v record="$line" '{if ($0 == record) print NR}' "$DB_DIR/$current_db/$table_to_select")
             selected_records_lines+=($line_number)
         done <<< "$selected_records"
-
-        # for i in "${!selected_records[@]}"; do
-        #     line_number=${selected_records_lines[$i]}
-        #     line=$(selected_records[$i])
-        #     form_fields=""
-        #     idx=1
-        #     for col_name in $column_names; do
-        #         form_fields+="--field=$col_name: $(echo $line | cut -d' ' -f$idx) "
-        #         idx=$((idx + 1))
-        #     done
-
-        #     updated_data=$(yad --form --title="Update Data in $table_to_select" --center --width=400 --height=300 $form_fields)
-        #     if [ $? -eq 1 ]; then
-        #         yad --info --text="Data update cancelled" --center --width=400 --height=100 --button="OK"
-        #         return
-        #     fi
-        #     echo -e "Updated data: $updated_data" #TODO: remove
-        #     updated_data=$(echo $updated_data | tr '|' ' ')
-        #     echo -e "Formatted updated data: $updated_data" #TODO: remove
-
-        #     # sed -i "${line_number}s/.*/$updated_data/" "$DB_DIR/$current_db/$table_to_select"
-        # done
+        
         i=0
         while IFS= read -r line; do
             line_number=${selected_records_lines[$i]}
@@ -189,6 +164,7 @@ update_table() {
                 primary_key_exists=$(awk -v idx=$primary_key_index -v pk=$primary_key_value '{if ($idx == pk) print $0}' "$DB_DIR/$current_db/$table_to_select")
                 if [ -n "$primary_key_exists" ]; then
                     yad --error --text="Error!!, Primary key value '$primary_key_value' already exists in table '$table_to_select'" --center --width=400 --height=100 --button="OK"
+                    #reinsert the deleted line
                     echo "$line" >> "$DB_DIR/$current_db/$table_to_select"
                     return
                 fi
@@ -366,9 +342,6 @@ select_from_table() {
         return
     fi
     echo -e "Data: $data" #TODO: remove
-
-    # formatted_data=$(echo $data | tr '|' ' ')
-    # echo -e "Formatted data: $formatted_data" #TODO: remove
 
     #know which of the columns are filled by the user, here 12|| this means there were 2 fields in the data the 2nd one was empty, so we need to know which of the fields are filled and there index so that we can search for them in the table and need to make an array of there indexes
     IFS='|' read -ra data_fields <<< "$data"
